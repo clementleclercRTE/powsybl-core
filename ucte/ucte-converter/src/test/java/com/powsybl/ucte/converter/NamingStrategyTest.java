@@ -28,6 +28,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 class NamingStrategyTest {
 
     @Test
+    void initTest(){
+        NamingStrategy s = new DefaultNamingStrategy();
+        s.init();
+    }
+
+    @Test
     void testUcteCode() {
         NamingStrategy strategy = new DefaultNamingStrategy();
 

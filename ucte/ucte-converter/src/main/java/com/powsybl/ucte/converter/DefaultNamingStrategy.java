@@ -34,6 +34,18 @@ public class DefaultNamingStrategy implements NamingStrategy {
     }
 
     @Override
+    public void init() {
+        Network n = Network.read("/Users/clementleclerc/Documents/Programmation/Powsybl/perso/powsybl-core/ucte/ucte-converter/src/main/java/com/powsybl/ucte/converter/export.xml");
+        System.out.println(n);
+
+        System.out.println("Substations:");
+        n.getSubstationStream().forEach(s -> System.out.println("- " + s.getId()));
+
+        System.out.println("\nVoltage Levels:");
+        n.getVoltageLevelStream().forEach(vl -> System.out.println("- " + vl.getId()));
+    }
+
+    @Override
     public UcteNodeCode getUcteNodeCode(String id) {
         return ucteNodeIds.computeIfAbsent(id, k -> UcteNodeCode.parseUcteNodeCode(k).orElseThrow(() -> new UcteException("Invalid UCTE node identifier: " + k)));
     }

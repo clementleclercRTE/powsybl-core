@@ -19,6 +19,8 @@ public interface NamingStrategy {
 
     String getName();
 
+    void init();
+
     UcteNodeCode getUcteNodeCode(String id);
 
     UcteNodeCode getUcteNodeCode(Bus bus);
