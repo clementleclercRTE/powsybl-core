@@ -110,6 +110,7 @@ public class UcteElementId implements Comparable<UcteElementId> {
                 isOrderCode(id.charAt(18));
     }
 
+
     private static boolean isOrderCode(char orderCode) {
         /*
            Update to match modification on UCTE format
