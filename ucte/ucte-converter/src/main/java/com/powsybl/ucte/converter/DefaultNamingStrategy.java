@@ -18,7 +18,6 @@ import com.powsybl.ucte.network.UcteVoltageLevelCode;
 import java.util.*;
 import java.util.stream.StreamSupport;
 
-
 /**
  * A {@link NamingStrategy} implementation that ensures the conformity of IDs with the UCTE-DEF format
  *
@@ -35,10 +34,8 @@ public class DefaultNamingStrategy implements NamingStrategy {
         return "Default";
     }
 
-
     /**
      * Initializes the network by converting network elements names to UCTE format if needed.
-     *
      * @param network The network to check
      */
     @Override
@@ -61,17 +58,14 @@ public class DefaultNamingStrategy implements NamingStrategy {
      * @param network The network whose elements need to be converted to UCTE format
      */
     private void convertToUcte(Network network) {
-
-        // Process all substations and their buses
-        // For each substation, get country name and convert all bus IDs to UCTE format
-        network.getSubstationStream()
-                .forEach(substation -> {
-                    String countryCode = substation.getCountry()
-                            .map(Country::getName)
+        network.getVoltageLevelStream()
+                .forEach(voltageLevel -> {
+                    // Get country code from substation if exists, else use default
+                    String countryCode = voltageLevel.getSubstation()
+                            .map(s -> s.getCountry().map(Country::getName).orElse("XX"))
                             .orElse("XX");
 
-                    substation.getVoltageLevelStream()
-                            .flatMap(vl -> StreamSupport.stream(vl.getBusBreakerView().getBuses().spliterator(), false))
+                    StreamSupport.stream(voltageLevel.getBusBreakerView().getBuses().spliterator(), false)
                             .forEach(bus -> {
                                 generateUcteNodeId(countryCode, bus);
                                 System.out.println("BUS : " + bus.getId() + "--> " + ucteNodeIds.get(bus.getId()));
@@ -91,7 +85,6 @@ public class DefaultNamingStrategy implements NamingStrategy {
                     generateUcteElementId(transformer);
                     System.out.println("TwoWindingsTrans : " + transformer.getId() + "--> " + ucteElementIds.get(transformer.getId()));
                 });
-
     }
 
     private void generateUcteNodeId(String country, Bus bus) {
@@ -99,50 +92,76 @@ public class DefaultNamingStrategy implements NamingStrategy {
         if (ucteElementIds.containsKey(id)) {return;}
         char countryCode = getCountryCode(country);
         char voltageLevelCode = getVoltageLevelCode(bus.getVoltageLevel().getNominalV());
-        UcteNodeCode nodeCode = UcteNodeCode.convertToUcteNodeId(countryCode, voltageLevelCode, id).get();
+        String formattedId = formatUniqueId(id);
+        UcteNodeCode nodeCode = UcteNodeCode.convertToUcteNodeId(countryCode, voltageLevelCode, formattedId).get();
         ucteNodeIds.put(id, nodeCode);
     }
 
-    private void generateUcteElementId(String originalId, UcteNodeCode node1, UcteNodeCode node2, char nodeCode) {
-        UcteElementId ucteElementId = new UcteElementId(node1,node2,nodeCode);
+    private String formatUniqueId(String id) {
+        /*
+            id = "NHV1_NHV2_1_1_BUS";
+            1. parts = ["NHV1", "NHV2", "1", "1", "BUS"]
+            2. unique = "NH" (2 first char)
+            3. numbers = "1121" -> unique = "NH1" (last number)
+            4. lastPart = "BUS" -> unique = "NH1BU" (2 first char)
+            5. length = 5, else complete with _
+            result= "NH1BU"
+         */
+        String[] parts = id.split("_");
+        StringBuilder unique = new StringBuilder();
+        if (parts.length > 1) {
+            unique.append(parts[0].substring(0, 2));
+            String numbers = id.replaceAll("[^0-9]", "");
+            if (!numbers.isEmpty()) {
+                unique.append(numbers.charAt(numbers.length() - 1));
+            }
+            String lastPart = parts[parts.length - 1].replaceAll("[0-9]", "");
+            if (lastPart.length() > 0) {
+                unique.append(lastPart.substring(0, Math.min(2, lastPart.length())));
+            }
+        } else {
+            unique.append(id.substring(0, Math.min(5, id.length())));
+        }
+        while (unique.length() < 5) {
+            unique.append('_');
+        }
+        return unique.substring(0, 5);
+    }
+
+    private void generateUcteElementId(String originalId, UcteNodeCode node1, UcteNodeCode node2, char orderCode) {
+        UcteElementId ucteElementId = new UcteElementId(node1, node2, orderCode);
         ucteElementIds.put(originalId, ucteElementId);
     }
 
     private void generateUcteElementId(TwoWindingsTransformer transformer) {
-
         String transformerId = transformer.getId();
-        // Skip if this transformer ID has already been processed
-        if (ucteElementIds.containsKey(transformerId)) {return;}
-
+        if (ucteElementIds.containsKey(transformerId)) {
+            return;
+        }
         UcteNodeCode node1 = ucteNodeIds.get(transformer.getTerminal1().getBusBreakerView().getBus().getId());
         UcteNodeCode node2 = ucteNodeIds.get(transformer.getTerminal2().getBusBreakerView().getBus().getId());
-        generateUcteElementId(transformerId,node1, node2, '1');
+        generateUcteElementId(transformerId, node1, node2, '1');
     }
 
     private void generateUcteElementId(Line line) {
-
-        // Get bus IDs from both terminals of the transformer
         String lineId = line.getId();
         // Skip if this line ID has already been processed
         if (ucteElementIds.containsKey(lineId)) {return;}
         UcteNodeCode node1 = ucteNodeIds.get(line.getTerminal1().getBusBreakerView().getBus().getId());
         UcteNodeCode node2 = ucteNodeIds.get(line.getTerminal2().getBusBreakerView().getBus().getId());
         char orderCode = line.getId().charAt(line.getId().length() - 1);
-
         generateUcteElementId(lineId,node1, node2, orderCode);
-
     }
 
 
     private static char getCountryCode(String code) {
-         for(UcteCountryCode countryCode : UcteCountryCode.values()) {
-             if(code.equalsIgnoreCase(countryCode.getPrettyName())) {
-                 return countryCode.getUcteCode();
-             }
-         }
+        for (UcteCountryCode countryCode : UcteCountryCode.values()) {
+            if (code.equalsIgnoreCase(countryCode.getPrettyName())) {
+                return countryCode.getUcteCode();
+            }
+        }
         return 'X';
     }
-
 
     public static char getVoltageLevelCode(double voltage) {
         for (UcteVoltageLevelCode code : UcteVoltageLevelCode.values()) {
@@ -152,8 +171,6 @@ public class DefaultNamingStrategy implements NamingStrategy {
         }
         throw new IllegalArgumentException("No voltage level code found for " + voltage + " kV");
     }
-
-
 
     @Override
     public UcteNodeCode getUcteNodeCode(String id) {
@@ -189,6 +206,4 @@ public class DefaultNamingStrategy implements NamingStrategy {
     public UcteElementId getUcteElementId(DanglingLine danglingLine) {
         return getUcteElementId(danglingLine.getId());
     }
-
-
 }
