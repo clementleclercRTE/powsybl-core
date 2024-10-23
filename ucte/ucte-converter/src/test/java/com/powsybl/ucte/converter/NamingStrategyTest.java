@@ -29,7 +29,8 @@ class NamingStrategyTest {
 
     @Test
     void initTest() {
-        Network n1 = Network.read("/home/leclercclm/IdeaProjects/perso/powsybl-core/ucte/ucte-converter/src/test/resources/network.xiidm");
+        ResourceDataSource dataSource = new ResourceDataSource("network", new ResourceSet("/", "network.xiidm"));
+        Network n1 = Network.read(dataSource);
         NamingStrategy s = new DefaultNamingStrategy();
         s.init(n1);
     }
